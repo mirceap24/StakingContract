@@ -197,7 +197,7 @@ contract Staking {
         totalStaked = stakedTotal;
         stakers[msg.sender] = staker;
 
-        //INTEGRATIONS
+        //INTERACTIONS
         bool success_ = stakedToken.transfer(msg.sender, oldStake);
         if (!success_) {
             revert Staking__TransferFailed();
@@ -222,12 +222,23 @@ contract Staking {
     // Reward is updated only one time/day and only users who staked can update their rewards
     function updateReward() external RewardUpdateConditions {
         Staker memory staker = stakers[msg.sender];
+        uint48 daysFromStake;
+
+        if (staker.lastUpdateTime == 0) {
+            daysFromStake =
+                uint48(block.timestamp - staker.lastStakeTime) /
+                86400;
+        } else {
+            daysFromStake =
+                uint48(block.timestamp - staker.lastUpdateTime) /
+                86400;
+        }
 
         // EFFECTS
         uint256 _rewardRate = rewardRate;
         uint256 _totalStaked = totalStaked;
         uint256 stakerPercentage = (staker.amountStaked * 1e18) / _totalStaked;
-        uint256 rewards = stakerPercentage * _rewardRate;
+        uint256 rewards = stakerPercentage * _rewardRate * daysFromStake;
         staker.lastReward = rewards;
         staker.pendingRewards += rewards;
         staker.lastUpdateTime = uint48(block.timestamp);
