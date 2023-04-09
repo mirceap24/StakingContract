@@ -13,6 +13,13 @@ error Staking__TransferFailed();
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+/**
+ * @title Staking Contract
+ * @author mirceamp24
+ * @notice This contract allows users to stake ERC20 tokens and receive rewards based on their stake proportion.
+ * Users can stake, unstake, restake and claim their rewards. Rewards are updated daily and can only be claimed after being updated.
+ * @dev This contract uses the OpenZeppelin ERC20 library for token operations.
+ */
 contract Staking {
     /* STATE VARIABLES */
 
@@ -57,6 +64,11 @@ contract Staking {
     }
 
     /* CONSTRUCTOR */
+    /**
+     * @notice Constructor sets the token address and reward rate
+     * @param _stakedToken Address of the ERC20 token to be staked
+     * @param _rewardRate Daily reward rate, in tokens
+     */
     constructor(address _stakedToken, uint256 _rewardRate) {
         if (_stakedToken == address(0)) {
             revert Staking__AddressZero();
@@ -68,7 +80,12 @@ contract Staking {
         rewardRate = _rewardRate;
     }
 
-    // User stakes a certain amount of tokens in the contract
+    /**
+     * @notice Stakes the specified amount of tokens
+     * @dev Transfers tokens from the staker to the contract and updates the staker's
+     * information
+     * @param _amount Amount of tokens to be staked
+     */
     function stake(uint256 _amount) external {
         Staker memory staker = stakers[msg.sender];
 
@@ -97,8 +114,17 @@ contract Staking {
         emit Staked(msg.sender, _amount);
     }
 
+<<<<<<< Updated upstream
     // User withdraws all his staked amount
     function unstake() external {
+=======
+    /**
+     * @notice Unstakes all the staked tokens for the user
+     * @dev Transfers staked tokens back to the staker and resets their staked amount in the
+     * contract. Can only be called if unstake conditions are met.
+     */
+    function unstake() external unstakeConditions {
+>>>>>>> Stashed changes
         Staker memory staker = stakers[msg.sender];
 
         // CHECKS
@@ -120,7 +146,11 @@ contract Staking {
         emit Unstaked(msg.sender, amountUnstaked);
     }
 
-    // User claims the total reward amount
+    /**
+     * @notice Claims the total pending rewards
+     * @dev Transfers pending rewards to the staker and resets their pending rewards in the
+     * contract. Can only be called if rewards have been updated.
+     */
     function claimReward() external {
         Staker memory staker = stakers[msg.sender];
 
@@ -143,7 +173,17 @@ contract Staking {
         emit RewardClaimed(msg.sender, collectedRewards);
     }
 
+<<<<<<< Updated upstream
     function restake() external {
+=======
+    /**
+     * @notice Restakes the staker's pending rewards and updates their stake by adding the
+     * pending rewards to the previous staked amount
+     * @dev Function can only be called if the staker meets the conditions specified in the
+     * restakeConditions modifier
+     */
+    function restake() external restakeConditions {
+>>>>>>> Stashed changes
         Staker memory staker = stakers[msg.sender];
 
         //CHECKS
@@ -167,7 +207,7 @@ contract Staking {
         totalStaked = stakedTotal;
         stakers[msg.sender] = staker;
 
-        //INTEGRATIONS
+        //INTERACTIONS
         bool success_ = stakedToken.transfer(msg.sender, oldStake);
         if (!success_) {
             revert Staking__TransferFailed();
@@ -186,6 +226,7 @@ contract Staking {
         }
     }
 
+<<<<<<< Updated upstream
     // Reward will be calculated and the user will receive the corresponding amount
     // Reward is updated only one time/day and only users who staked can update their rewards
     function updateReward() external oncePerDay {
@@ -197,6 +238,16 @@ contract Staking {
         }
 
         // EFFECTS
+=======
+    /**
+     * @notice Updates the daily reward for the staker
+     * @dev Calculates and adds the daily reward to the staker's pending rewards. Can only
+     * be called if the staker meets the conditions specified in the RewardUpdateConditions modifier
+     */
+    function updateReward() external RewardUpdateConditions {
+        Staker memory staker = stakers[msg.sender];
+
+>>>>>>> Stashed changes
         uint256 _rewardRate = rewardRate;
         uint256 _totalStaked = totalStaked;
         uint256 stakerPercentage = (staker.amountStaked * 1e18) / _totalStaked;
@@ -210,16 +261,29 @@ contract Staking {
         emit RewardUpdated(msg.sender, staker.rewardsUpdated);
     }
 
+    /**
+     * @notice Retrieves the Staker struct for the specified staker address
+     * @param stakerAddress The address of the staker
+     * @return Staker memory The Staker struct containing staker's data
+     */
     function getStaker(
         address stakerAddress
     ) external view returns (Staker memory) {
         return stakers[stakerAddress];
     }
 
+    /**
+     * @notice Retrieves the daily reward rate
+     * @return uint256 The daily reward rate for stakers
+     */
     function getRewardRate() external view returns (uint256) {
         return rewardRate;
     }
 
+    /**
+     * @notice Retrieves the total amount of tokens staked in the contract
+     * @return uint256 The total staked tokens
+     */
     function getTotalStaked() external view returns (uint256) {
         return totalStaked;
     }
