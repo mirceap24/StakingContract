@@ -9,6 +9,9 @@ error Staking__NoStakedAmount();
 error Staking__NoPendingRewards();
 error Staking__RewardsNotUpdated();
 error Staking__RewardRateZero();
+error Staking__RestakeNotAllowed();
+error Staking__UnstakeNotAllowed();
+error Staking__UpdateNotEligible();
 error Staking__TransferFailed();
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -19,10 +22,11 @@ contract Staking {
     // Token's address that will be staked
     ERC20 public immutable stakedToken;
 
+    // Daily reward rate
+    uint256 public immutable rewardRate;
+
     // Total amount of tokens staked in the contract
     uint256 public totalStaked;
-
-    uint256 public rewardRate;
 
     // Informations about stakers
     struct Staker {
@@ -32,8 +36,12 @@ contract Staking {
         uint256 pendingRewards;
         // Amount of last reward claimed by the user
         uint256 lastReward;
+        // Time when user first stakes
+        uint48 firstStakeTime;
         // Last time when the user claimed his rewards
         uint48 lastUpdateTime;
+        // Last stake time
+        uint48 lastStakeTime;
         // Check to see if user updated his rewards
         bool rewardsUpdated;
     }
@@ -44,12 +52,42 @@ contract Staking {
     /* EVENTS */
     event Staked(address indexed staker, uint256 amountStaked);
     event Unstaked(address indexed staker, uint256 amountUnstaked);
+    event Restaked(address indexed staker, uint256 newAmountStaked);
     event RewardClaimed(address indexed staker, uint256 rewards);
     event RewardUpdated(address indexed staker, bool rewardUpdate);
 
     /* MODIFIERS */
-    modifier oncePerDay() {
+    modifier unstakeConditions() {
         Staker memory staker = stakers[msg.sender];
+        if (staker.amountStaked == 0) {
+            revert Staking__NoStakedAmount();
+        }
+        if (block.timestamp < staker.lastStakeTime + 86400) {
+            revert Staking__UnstakeNotAllowed();
+        }
+        _;
+    }
+    modifier restakeConditions() {
+        Staker memory staker = stakers[msg.sender];
+        if (staker.amountStaked == 0) {
+            revert Staking__NoStakedAmount();
+        }
+        if (!staker.rewardsUpdated) {
+            revert Staking__RewardsNotUpdated();
+        }
+        if (block.timestamp < staker.lastStakeTime + 86400) {
+            revert Staking__RestakeNotAllowed();
+        }
+        _;
+    }
+    modifier RewardUpdateConditions() {
+        Staker memory staker = stakers[msg.sender];
+        if (staker.amountStaked == 0) {
+            revert Staking__NoStakedAmount();
+        }
+        if (block.timestamp < staker.firstStakeTime + 86400) {
+            revert Staking__UpdateNotEligible();
+        }
         if (block.timestamp < staker.lastUpdateTime + 86400) {
             revert Staking__ClaimOncePerDay();
         }
@@ -82,6 +120,10 @@ contract Staking {
 
         // EFFECTS
         staker.amountStaked += _amount;
+        staker.lastStakeTime = uint48(block.timestamp);
+        if (staker.firstStakeTime == 0) {
+            staker.firstStakeTime = uint48(block.timestamp);
+        }
         totalStaked += _amount;
         stakers[msg.sender] = staker;
 
@@ -98,13 +140,8 @@ contract Staking {
     }
 
     // User withdraws all his staked amount
-    function unstake() external {
+    function unstake() external unstakeConditions {
         Staker memory staker = stakers[msg.sender];
-
-        // CHECKS
-        if (staker.amountStaked == 0) {
-            revert Staking__NoStakedAmount();
-        }
 
         // EFFECTS
         uint256 amountUnstaked = staker.amountStaked;
@@ -143,16 +180,8 @@ contract Staking {
         emit RewardClaimed(msg.sender, collectedRewards);
     }
 
-    function restake() external {
+    function restake() external restakeConditions {
         Staker memory staker = stakers[msg.sender];
-
-        //CHECKS
-        if (staker.amountStaked == 0) {
-            revert Staking__NoStakedAmount();
-        }
-        if (!staker.rewardsUpdated) {
-            revert Staking__RewardsNotUpdated();
-        }
 
         // EFFECTS
         uint256 restakedAmount = staker.amountStaked + staker.pendingRewards;
@@ -164,6 +193,7 @@ contract Staking {
         staker.pendingRewards = 0;
         staker.rewardsUpdated = false;
         staker.lastUpdateTime = uint48(block.timestamp);
+        staker.lastStakeTime = uint48(block.timestamp);
         totalStaked = stakedTotal;
         stakers[msg.sender] = staker;
 
@@ -184,17 +214,14 @@ contract Staking {
         if (!success__) {
             revert Staking__TransferFailed();
         }
+
+        emit Restaked(msg.sender, restakedAmount);
     }
 
     // Reward will be calculated and the user will receive the corresponding amount
     // Reward is updated only one time/day and only users who staked can update their rewards
-    function updateReward() external oncePerDay {
+    function updateReward() external RewardUpdateConditions {
         Staker memory staker = stakers[msg.sender];
-
-        // CHECKS
-        if (staker.amountStaked == 0) {
-            revert Staking__NoStakedAmount();
-        }
 
         // EFFECTS
         uint256 _rewardRate = rewardRate;

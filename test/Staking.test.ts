@@ -80,7 +80,14 @@ describe("Contract", function () {
 
     expect(staker.amountStaked).to.equal(100);
     expect(staker.pendingRewards).to.equal(0);
+    expect(staker.lastReward).to.equal(0);
+    expect(staker.firstStakeTime).to.equal(
+      (await ethers.provider.getBlock("latest")).timestamp
+    );
     expect(staker.lastUpdateTime).to.equal(0);
+    expect(staker.lastStakeTime).to.equal(
+      (await ethers.provider.getBlock("latest")).timestamp
+    );
     expect(staker.rewardsUpdated).to.equal(false);
   });
 
@@ -156,6 +163,8 @@ describe("Contract", function () {
     await myToken1.connect(user1).approve(staking.address, 500);
 
     await staking.connect(user1).stake(500);
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).unstake();
 
     const staker = await staking.getStaker(user1.address);
@@ -167,6 +176,8 @@ describe("Contract", function () {
     await myToken1.connect(user1).approve(staking.address, 500);
 
     await staking.connect(user1).stake(500);
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).unstake();
 
     const userBalance = await myToken1.balanceOf(user1.address);
@@ -184,6 +195,8 @@ describe("Contract", function () {
     await myToken1.connect(user1).approve(staking.address, 500);
 
     await staking.connect(user1).stake(500);
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).unstake();
 
     const totalStaked = await staking.getTotalStaked();
@@ -202,6 +215,8 @@ describe("Contract", function () {
     await staking.connect(user2).stake(250);
     await staking.connect(user3).stake(400);
 
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).unstake();
 
     const totalStaked = await staking.getTotalStaked();
@@ -213,10 +228,35 @@ describe("Contract", function () {
     await myToken1.connect(user1).approve(staking.address, 500);
 
     await staking.connect(user1).stake(240);
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
 
     await expect(staking.connect(user1).unstake())
       .to.emit(staking, "Unstaked")
       .withArgs(user1.address, 240);
+  });
+
+  it("Should not allow unstaking before 24 hours", async () => {
+    await myToken1.mint(user1.address, 600);
+    await myToken1.connect(user1).approve(staking.address, 600);
+
+    await staking.connect(user1).stake(500);
+    await expect(
+      staking.connect(user1).unstake()
+    ).to.be.revertedWithCustomError(staking, "Staking__UnstakeNotAllowed");
+  });
+
+  it("Should allow unstaking after 24 hours", async () => {
+    await myToken1.mint(user1.address, 600);
+    await myToken1.connect(user1).approve(staking.address, 600);
+
+    await staking.connect(user1).stake(500);
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
+
+    await expect(staking.connect(user1).unstake())
+      .to.emit(staking, "Unstaked")
+      .withArgs(user1.address, 500);
   });
 
   // -----------------------
@@ -237,6 +277,8 @@ describe("Contract", function () {
     await myToken1.connect(user1).approve(staking.address, 1000);
 
     await staking.connect(user1).stake(500);
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).unstake();
 
     await expect(
@@ -249,6 +291,8 @@ describe("Contract", function () {
     await myToken1.connect(user1).approve(staking.address, 800);
 
     await staking.connect(user1).stake(600);
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
 
     const stakerInfo = await staking.getStaker(user1.address);
@@ -272,6 +316,8 @@ describe("Contract", function () {
     await staking.connect(user2).stake(400);
 
     // User1 will update his rewards, should have 50% of the reward rate
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
     const staker1Info = await staking.getStaker(user1.address);
     expect(staker1Info.rewardsUpdated).to.be.equal(true);
@@ -280,6 +326,8 @@ describe("Contract", function () {
       18
     );
     // User2 should have the same amount, 50%
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user2).updateReward();
     const staker2Info = await staking.getStaker(user1.address);
     expect(staker2Info.rewardsUpdated).to.be.equal(true);
@@ -300,6 +348,8 @@ describe("Contract", function () {
 
     // User1 will then update this rewards, should have 100% of the reward rate
     await staking.connect(user1).stake(400);
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
     const staker1Info = await staking.getStaker(user1.address);
     expect(staker1Info.rewardsUpdated).to.be.equal(true);
@@ -318,6 +368,8 @@ describe("Contract", function () {
     // User2 will now stake and then update his rewards
     // He should receive approx. 55.55% of the reward rate
     await staking.connect(user2).stake(500);
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user2).updateReward();
     const staker2Info = await staking.getStaker(user2.address);
     expect(staker2Info.rewardsUpdated).to.be.equal(true);
@@ -347,25 +399,13 @@ describe("Contract", function () {
     );
   });
 
-  it("Reverts if user updates rewards in less than 24 hours", async () => {
-    await myToken1.mint(user1.address, 800);
-    await myToken1.connect(user1).approve(staking.address, 800);
-
-    await staking.connect(user1).stake(500);
-    await staking.connect(user1).updateReward();
-    await ethers.provider.send("evm_increaseTime", [86390]);
-    await ethers.provider.send("evm_mine", []);
-
-    await expect(
-      staking.connect(user1).updateReward()
-    ).to.be.revertedWithCustomError(staking, "Staking__ClaimOncePerDay");
-  });
-
   it("Updates rewards after unstaking and staking again", async () => {
     await myToken1.mint(user1.address, 800);
     await myToken1.connect(user1).approve(staking.address, 800);
 
     await staking.connect(user1).stake(600);
+    await ethers.provider.send("evm_increaseTime", [86460]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward(); // should have 100% of reward rate
     const stakerInfo1 = await staking.getStaker(user1.address);
     const rewardsInDecimal1 = ethers.utils.formatUnits(
@@ -377,7 +417,7 @@ describe("Contract", function () {
     await staking.connect(user1).unstake();
     await expect(
       staking.connect(user1).updateReward()
-    ).to.be.revertedWithCustomError(staking, "Staking__ClaimOncePerDay");
+    ).to.be.revertedWithCustomError(staking, "Staking__NoStakedAmount");
     await ethers.provider.send("evm_increaseTime", [86400]);
     await ethers.provider.send("evm_mine", []);
 
@@ -396,6 +436,54 @@ describe("Contract", function () {
     );
     expect(Number(rewardsInDecimal2)).to.be.equal(200);
   });
+
+  it("Should not be able to call updateReward before 24 hours since first stake", async () => {
+    await myToken1.mint(user1.address, 800);
+    await myToken1.connect(user1).approve(staking.address, 800);
+
+    await staking.connect(user1).stake(600);
+    await expect(
+      staking.connect(user1).updateReward()
+    ).to.be.revertedWithCustomError(staking, "Staking__UpdateNotEligible");
+  });
+
+  it("Should be able to call updateReward after 24 hours since first stake", async () => {
+    await myToken1.mint(user1.address, 800);
+    await myToken1.connect(user1).approve(staking.address, 800);
+
+    await staking.connect(user1).stake(600);
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+
+    await expect(staking.connect(user1).updateReward())
+      .to.emit(staking, "RewardUpdated")
+      .withArgs(user1.address, true);
+  });
+
+  it("Should be able to call updateReward every 24 hours", async () => {
+    await myToken1.mint(user1.address, 800);
+    await myToken1.connect(user1).approve(staking.address, 800);
+
+    await staking.connect(user1).stake(600);
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+
+    await expect(staking.connect(user1).updateReward())
+      .to.emit(staking, "RewardUpdated")
+      .withArgs(user1.address, true);
+
+    await expect(
+      staking.connect(user1).updateReward()
+    ).to.be.revertedWithCustomError(staking, "Staking__ClaimOncePerDay");
+
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+
+    await expect(staking.connect(user1).updateReward())
+      .to.emit(staking, "RewardUpdated")
+      .withArgs(user1.address, true);
+  });
+
   // -----------------------
   /* CLAIMREWARD FUNCTION TESTS */
   // ------------------------
@@ -408,6 +496,8 @@ describe("Contract", function () {
     await myToken1.connect(user1).approve(staking.address, 1000);
 
     await staking.connect(user1).stake(500);
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
 
     const stakerBeforeClaim = await staking.getStaker(user1.address);
@@ -430,6 +520,9 @@ describe("Contract", function () {
     await myToken1.connect(user1).approve(staking.address, 1000);
 
     await staking.connect(user1).stake(500);
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+
     await staking.connect(user1).updateReward();
 
     const stakerBeforeClaim = await staking.getStaker(user1.address);
@@ -463,6 +556,8 @@ describe("Contract", function () {
       staking.connect(user1).claimReward()
     ).to.be.revertedWithCustomError(staking, "Staking__RewardsNotUpdated");
 
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
     await expect(staking.connect(user1).claimReward()).to.not.be.reverted;
   });
@@ -476,6 +571,8 @@ describe("Contract", function () {
     await myToken1.connect(user1).approve(staking.address, 1000);
 
     await staking.connect(user1).stake(500);
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
     await staking.connect(user1).claimReward();
 
@@ -493,6 +590,8 @@ describe("Contract", function () {
     await myToken1.connect(user1).approve(staking.address, 1000);
 
     await staking.connect(user1).stake(500);
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
     await staking.connect(user1).unstake();
 
@@ -508,6 +607,8 @@ describe("Contract", function () {
     await myToken1.connect(user1).approve(staking.address, 1000);
 
     await staking.connect(user1).stake(500);
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
     const stakerInfo = await staking.getStaker(user1.address);
     const rewardsInDecimal = ethers.utils.formatUnits(
@@ -539,6 +640,8 @@ describe("Contract", function () {
 
     await staking.connect(user1).stake(ethers.utils.parseUnits("500", 18));
     await staking.connect(user2).stake(ethers.utils.parseUnits("500", 18));
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
 
     await staking.connect(user1).claimReward();
@@ -575,6 +678,8 @@ describe("Contract", function () {
 
     await staking.connect(user1).stake(ethers.utils.parseUnits("500", 18));
     await staking.connect(user2).stake(ethers.utils.parseUnits("500", 18));
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
     const user1BalanceAfterStake = await myToken1.balanceOf(user1.address);
     const balanceInDecimalAfterStake = ethers.utils.formatUnits(
@@ -622,6 +727,8 @@ describe("Contract", function () {
     );
     //console.log(Number(balanceInDecimalAfterStake)); // 500
 
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
     const stakerAfterUpdate = await staking.getStaker(user1.address);
     const rewardPending = await stakerAfterUpdate.pendingRewards;
@@ -663,6 +770,8 @@ describe("Contract", function () {
     );
     //console.log(Number(balanceInDecimalAfterStake)); // 500
 
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
     const stakerAfterUpdate = await staking.getStaker(user1.address);
     const rewardPending = await stakerAfterUpdate.pendingRewards;
@@ -705,6 +814,8 @@ describe("Contract", function () {
     );
     //console.log(Number(balanceInDecimalAfterStake)); // 500
 
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
     const stakerAfterUpdate = await staking.getStaker(user1.address);
     const rewardPending = await stakerAfterUpdate.pendingRewards;
@@ -770,6 +881,8 @@ describe("Contract", function () {
       .approve(staking.address, ethers.utils.parseUnits("1000", 18));
 
     await staking.connect(user1).stake(ethers.utils.parseUnits("500", 18));
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
     await staking.connect(user1).claimReward();
 
@@ -796,6 +909,8 @@ describe("Contract", function () {
       .approve(staking.address, ethers.utils.parseUnits("1000", 18));
 
     await staking.connect(user1).stake(ethers.utils.parseUnits("500", 18));
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
 
     // const totalStakedBeforeRestake = await staking.totalStaked();
@@ -837,6 +952,8 @@ describe("Contract", function () {
       .approve(staking.address, ethers.utils.parseUnits("1000", 18));
 
     await staking.connect(user1).stake(ethers.utils.parseUnits("500", 18));
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
     await staking.connect(user1).updateReward();
 
     await myToken1
@@ -860,5 +977,97 @@ describe("Contract", function () {
     );
     expect(Number(contractBalanceAfterRestakeInDecimal)).to.equal(10500);
     //console.log(Number(contractBalanceAfterRestakeInDecimal));
+  });
+
+  it("Updates token balances correctly after restaking (V2)", async () => {
+    await myToken1.mint(user1.address, ethers.utils.parseUnits("1000", 18));
+    await myToken1.mint(user2.address, ethers.utils.parseUnits("1000", 18));
+    await myToken1.mint(user3.address, ethers.utils.parseUnits("1000", 18));
+    await myToken1.mint(staking.address, ethers.utils.parseUnits("10000", 18));
+    await myToken1
+      .connect(user1)
+      .approve(staking.address, ethers.utils.parseUnits("1000", 18));
+    await myToken1
+      .connect(user2)
+      .approve(staking.address, ethers.utils.parseUnits("1000", 18));
+    await myToken1
+      .connect(user3)
+      .approve(staking.address, ethers.utils.parseUnits("1000", 18));
+
+    await staking.connect(user1).stake(ethers.utils.parseUnits("60", 18));
+    await staking.connect(user2).stake(ethers.utils.parseUnits("240", 18));
+    await staking.connect(user3).stake(ethers.utils.parseUnits("200", 18));
+
+    const contractBalanceAfterStake = await myToken1.balanceOf(staking.address);
+    const contractBalanceInDecimalAfterStake = ethers.utils.formatUnits(
+      contractBalanceAfterStake,
+      18
+    );
+    console.log(Number(contractBalanceInDecimalAfterStake));
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+    await staking.connect(user1).updateReward();
+    await staking.connect(user2).updateReward();
+    await staking.connect(user3).updateReward();
+    await staking.connect(user1).restake();
+
+    const staker = await staking.getStaker(user1.address);
+    console.log(staker.amountStaked);
+
+    const contractBalanceAfterStake1 = await myToken1.balanceOf(
+      staking.address
+    );
+    const contractBalanceInDecimalAfterStake1 = ethers.utils.formatUnits(
+      contractBalanceAfterStake1,
+      18
+    );
+    console.log(Number(contractBalanceInDecimalAfterStake1));
+    await staking.connect(user2).restake();
+    await staking.connect(user3).restake();
+
+    const user1BalanceAfterRestake = await myToken1.balanceOf(user1.address);
+    const balance1InDecimalAfterRestake = ethers.utils.formatUnits(
+      user1BalanceAfterRestake,
+      18
+    );
+    expect(Number(balance1InDecimalAfterRestake)).to.equal(940);
+
+    const user2BalanceAfterRestake = await myToken1.balanceOf(user2.address);
+    const balance2InDecimalAfterRestake = ethers.utils.formatUnits(
+      user2BalanceAfterRestake,
+      18
+    );
+    expect(Number(balance2InDecimalAfterRestake)).to.equal(760);
+
+    const user3BalanceAfterRestake = await myToken1.balanceOf(user3.address);
+    const balance3InDecimalAfterRestake = ethers.utils.formatUnits(
+      user3BalanceAfterRestake,
+      18
+    );
+    expect(Number(balance3InDecimalAfterRestake)).to.equal(800);
+
+    const contractBalance = await myToken1.balanceOf(staking.address);
+    const contractBalanceInDecimal = ethers.utils.formatUnits(
+      contractBalance,
+      18
+    );
+    console.log(Number(contractBalanceInDecimal));
+  });
+
+  it("Should allow restaking after 24 hours since the last stake", async () => {
+    await myToken1.mint(user1.address, ethers.utils.parseUnits("1000", 18));
+    await myToken1.mint(staking.address, ethers.utils.parseUnits("10000", 18));
+    await myToken1
+      .connect(user1)
+      .approve(staking.address, ethers.utils.parseUnits("1000", 18));
+
+    await staking.connect(user1).stake(ethers.utils.parseUnits("60", 18));
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+    await staking.connect(user1).updateReward();
+
+    expect(await staking.connect(user1).restake())
+      .to.emit(staking, "Restaked")
+      .withArgs(user1.address, 160);
   });
 });
