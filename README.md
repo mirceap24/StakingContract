@@ -25,3 +25,6 @@ This project demonstrates a staking contract that allows users to stake, unstake
 `updateReward`
 
 - This function allows users to update their rewards. Users can only update their rewards once every 24 hours and after 24 hours from their first stake. The rewards are calculated based on the user's staking percentage and the daily reward rate. The calculated rewards are added to the user's pending rewards.
+- The function calculates rewards for the days that have passed since the last update. For example, if a user updates their rewards after 2 days, they will receive the rewards for both the previous day and the current day.
+- Similarly, if the user updates their rewards after 3 days, they will receive rewards for the first 2 days and the current day.
+- In this way the users will receive their correct rewards, regardless of when they choose to update their rewards.
